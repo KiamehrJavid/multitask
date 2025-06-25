@@ -1,6 +1,9 @@
 """Main training loop"""
-
+######################################################################
 from __future__ import division
+
+import warnings
+warnings.filterwarnings("ignore",message=r"Passing \(type, 1\) or '1type' as a synonym of type is deprecated",category=FutureWarning)
 
 import sys
 import time
@@ -8,7 +11,9 @@ from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
-import tensorflow as tf
+
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
 import task
 from task import generate_trials
@@ -304,6 +309,8 @@ def train(model_dir,
             model.set_optimizer(var_list=var_list)
 
         step = 0
+        if hp.get('max_steps') is not None:
+            max_steps = hp['max_steps']
         while step * hp['batch_size_train'] <= max_steps:
             try:
                 # Validation
@@ -334,6 +341,11 @@ def train(model_dir,
                 feed_dict = tools.gen_feed_dict(model, trial, hp)
                 sess.run(model.train_step, feed_dict=feed_dict)
 
+                # if step % 10:
+                #     print(dir(model))
+                    # w_rec_val = sess.run(model._kernel)
+                    # print("Recurrent weights (sample):\n\n\n")
+                    # print(w_rec_val[85:])
                 step += 1
 
             except KeyboardInterrupt:

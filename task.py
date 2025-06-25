@@ -1587,7 +1587,7 @@ def generate_trials(rule, hp, mode, noise_on=True, **kwargs):
     if 'replace_rule' in kwargs:
         rule = kwargs['replace_rule']
 
-    if rule is 'testinit':
+    if rule == 'testinit':
         # Add no rule
         return trial
 

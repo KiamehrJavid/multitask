@@ -104,6 +104,7 @@ def save_hp(hp, model_dir):
     """Save the hyper-parameter file of model save_name"""
     hp_copy = hp.copy()
     hp_copy.pop('rng')  # rng can not be serialized
+    if hp_copy.get('neur_type') is not None: hp_copy.pop('neur_type') # neur_type can not be serialized either apparently
     with open(os.path.join(model_dir, 'hp.json'), 'w') as f:
         json.dump(hp_copy, f)
 

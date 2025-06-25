@@ -1,12 +1,19 @@
 """Definition of the network model and various RNN cells"""
-
 from __future__ import division
+
+
+import warnings
+warnings.filterwarnings("ignore",message=r"Passing \(type, 1\) or '1type' as a synonym of type is deprecated",category=FutureWarning)
 
 import os
 import numpy as np
 import pickle
 
-import tensorflow as tf
+
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+
+
 from tensorflow.python.platform import tf_logging as logging
 from tensorflow.python.ops import variable_scope as vs
 from tensorflow.python.ops import array_ops
@@ -114,6 +121,7 @@ class LeakyRNNCell(RNNCell):
                  sigma_rec=0,
                  activation='softplus',
                  w_rec_init='diag',
+                 neur_type=None,
                  rng=None,
                  reuse=None,
                  name=None):
@@ -125,6 +133,8 @@ class LeakyRNNCell(RNNCell):
         self._num_units = num_units
         self._w_rec_init = w_rec_init
         self._reuse = reuse
+# >>> change here
+        self.neur_type = neur_type
 
         if activation == 'softplus':
             self._activation = tf.nn.softplus
@@ -168,7 +178,7 @@ class LeakyRNNCell(RNNCell):
         elif self._w_rec_init == 'randgauss':
             w_rec0 = (self._w_rec_start *
                       self.rng.randn(n_hidden, n_hidden)/np.sqrt(n_hidden))
-
+            
         matrix0 = np.concatenate((w_in0, w_rec0), axis=0)
 
         self.w_rnn0 = matrix0
@@ -189,6 +199,7 @@ class LeakyRNNCell(RNNCell):
                                              % inputs_shape)
 
         input_depth = inputs_shape[1].value
+        self.input_depth = input_depth
         self._kernel = self.add_variable(
                 'kernel',
                 shape=[input_depth + self._num_units, self._num_units],
@@ -203,8 +214,16 @@ class LeakyRNNCell(RNNCell):
     def call(self, inputs, state):
         """Most basic RNN: output = new_state = act(W * input + U * state + B)."""
 
+        full_kernel = self._kernel
+        if self.neur_type is not None:
+            w_in, w_rec = tf.split(self._kernel, [self.input_depth, self._num_units], axis=0)
+            w_rec = nn_ops.relu(w_rec)
+            dale_matrix = tf.linalg.tensor_diag(self.neur_type)
+            w_rec = math_ops.matmul(w_rec, dale_matrix)
+            full_kernel = tf.concat([w_in, w_rec], axis=0)
+
         gate_inputs = math_ops.matmul(
-            array_ops.concat([inputs, state], 1), self._kernel)
+            array_ops.concat([inputs, state], 1), full_kernel)
         gate_inputs = nn_ops.bias_add(gate_inputs, self._bias)
 
         noise = tf.random_normal(tf.shape(state), mean=0, stddev=self._sigma)
@@ -544,11 +563,13 @@ class Model(object):
         # Recurrent activity
         if hp['rnn_type'] == 'LeakyRNN':
             n_in_rnn = self.x.get_shape().as_list()[-1]
+            # >>> change here: added neur_type
             cell = LeakyRNNCell(n_rnn, n_in_rnn,
                                 hp['alpha'],
                                 sigma_rec=hp['sigma_rec'],
                                 activation=hp['activation'],
                                 w_rec_init=hp['w_rec_init'],
+                                neur_type=hp.get('neur_type'),
                                 rng=self.rng)
         elif hp['rnn_type'] == 'LeakyGRU':
             cell = LeakyGRUCell(
@@ -654,17 +675,17 @@ class Model(object):
         sensory_inputs, rule_inputs = tf.split(
             self.x, [hp['rule_start'], hp['n_rule']], axis=-1)
 
-        sensory_rnn_inputs = tf.layers.dense(sensory_inputs, n_rnn, name='sen_input')
+        sensory_rnn_inputs = tf.keras.layers.Dense(n_rnn, name='sen_input')(sensory_inputs)
 
         if 'mix_rule' in hp and hp['mix_rule'] is True:
             # rotate rule matrix
             kernel_initializer = tf.orthogonal_initializer()
-            rule_inputs = tf.layers.dense(
-                rule_inputs, hp['n_rule'], name='mix_rule',
+            rule_inputs = tf.keras.layers.Dense(
+                hp['n_rule'], name='mix_rule',
                 use_bias=False, trainable=False,
-                kernel_initializer=kernel_initializer)
+                kernel_initializer=kernel_initializer)(rule_inputs)
 
-        rule_rnn_inputs = tf.layers.dense(rule_inputs, n_rnn, name='rule_input', use_bias=False)
+        rule_rnn_inputs = tf.keras.layers.Dense(n_rnn, name='rule_input', use_bias=False)(rule_inputs)
 
         rnn_inputs = sensory_rnn_inputs + rule_rnn_inputs
 
@@ -684,8 +705,8 @@ class Model(object):
         h_shaped = tf.reshape(self.h, (-1, n_rnn))
         y_shaped = tf.reshape(self.y, (-1, n_output))
         # y_hat shape (n_time*n_batch, n_unit)
-        y_hat = tf.layers.dense(
-            h_shaped, n_output, activation=tf.nn.sigmoid, name='output')
+        y_hat = tf.keras.layers.Dense(
+            n_output, activation=tf.nn.sigmoid, name='output')(h_shaped)
         # Least-square loss
         self.cost_lsq = tf.reduce_mean(
             tf.square((y_shaped - y_hat) * self.c_mask))
@@ -715,6 +736,13 @@ class Model(object):
                     self.b_in = v
             elif 'rule_input' in v.name:
                 self.w_rule = v
+# >>> change started here
+            elif 'mix_rule' in v.name:
+                if 'kernel' in v.name or 'weight' in v.name:
+                    self.w_out = v
+                else:
+                    self.b_out = v
+# >>> change ended here
             else:
                 assert 'output' in v.name
                 if 'kernel' in v.name or 'weight' in v.name:
