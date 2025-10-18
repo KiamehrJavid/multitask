@@ -64,8 +64,43 @@ def tf_popvec(y):
     return tf.mod(loc, 2*np.pi)
 
 
-def get_perf(y_hat, y_loc):
-    """Get performance.
+# def get_perf(y_hat, y_loc):
+#     """Get performance.
+
+#     Args:
+#       y_hat: Actual output. Numpy array (Time, Batch, Unit)
+#       y_loc: Target output location (-1 for fixation).
+#         Numpy array (Time, Batch)
+
+#     Returns:
+#       perf: Numpy array (Batch,)
+#     """
+#     if len(y_hat.shape) != 3:
+#         raise ValueError('y_hat must have shape (Time, Batch, Unit)')
+#     # Only look at last time points
+#     y_loc = y_loc[-1]
+#     y_hat = y_hat[-1]
+
+#     # Fixation and location of y_hat
+#     y_hat_fix = y_hat[..., 0]
+#     y_hat_loc = popvec(y_hat[..., 1:])
+
+#     # Fixating? Correctly saccading?
+#     fixating = y_hat_fix > 0.5
+
+#     original_dist = y_loc - y_hat_loc
+#     dist = np.minimum(abs(original_dist), 2*np.pi-abs(original_dist))
+#     corr_loc = dist < 0.2*np.pi
+
+#     # Should fixate?
+#     should_fix = y_loc < 0
+
+#     # performance
+#     perf = should_fix * fixating + (1-should_fix) * corr_loc * (1-fixating)
+#     return perf
+
+def get_perf(y_hat_in, y_loc_in):
+    """Get performance(fixed version by Michele).
 
     Args:
       y_hat: Actual output. Numpy array (Time, Batch, Unit)
@@ -75,30 +110,77 @@ def get_perf(y_hat, y_loc):
     Returns:
       perf: Numpy array (Batch,)
     """
-    if len(y_hat.shape) != 3:
+    if len(y_hat_in.shape) != 3:
         raise ValueError('y_hat must have shape (Time, Batch, Unit)')
+    
+    total_time = y_hat_in.shape[0]
+    rng = np.random.default_rng()
+    tt = rng.integers(total_time//5, total_time//3,2)
+    # two extra points in addition to the last point
+
     # Only look at last time points
-    y_loc = y_loc[-1]
-    y_hat = y_hat[-1]
+    y_loc = y_loc_in[-1]
+    y_hat = y_hat_in[-1]
 
     # Fixation and location of y_hat
     y_hat_fix = y_hat[..., 0]
     y_hat_loc = popvec(y_hat[..., 1:])
 
     # Fixating? Correctly saccading?
-    fixating = y_hat_fix > 0.5
+    # these are better definitions for correctly saccading
+    fixating = y_hat_fix > 0.75
+    nonfixating = y_hat_fix < 0.1
+
 
     original_dist = y_loc - y_hat_loc
     dist = np.minimum(abs(original_dist), 2*np.pi-abs(original_dist))
-    corr_loc = dist < 0.2*np.pi
+    corr_loc = dist < 0.1*np.pi
 
     # Should fixate?
     should_fix = y_loc < 0
 
     # performance
-    perf = should_fix * fixating + (1-should_fix) * corr_loc * (1-fixating)
-    return perf
+    #perf0 = should_fix * fixating + (1-should_fix) * corr_loc * (1-fixating)
+    #perf0 = should_fix * fixating + (1-should_fix) * corr_loc * nonfixating
+    #perf0 = should_fix * fixating + (1-fixating) * corr_loc * (~should_fix)
+    perf0 = should_fix * fixating + nonfixating * (~should_fix) * corr_loc
 
+
+    # Look at the point at 1/3 of the way through the trial
+    #t = total_time // 3
+    perf_array = np.empty((2,perf0.shape[0]), dtype=bool)
+    for i in range(2):
+        t = tt[i]
+        y_loc1 = y_loc_in[-t]
+        y_hat1 = y_hat_in[-t]
+
+    # Fixation and location of y_hat
+        y_hat_fix1 = y_hat1[..., 0]
+        y_hat_loc1 = popvec(y_hat1[..., 1:])
+
+    # Fixating? Correctly saccading?
+        fixating1 = y_hat_fix1 > 0.75
+        nonfixating1 = y_hat_fix1 < 0.1
+
+
+        original_dist1 = y_loc1 - y_hat_loc1
+        dist1 = np.minimum(abs(original_dist1), 2*np.pi-abs(original_dist1))
+        corr_loc1 = dist1 < 0.1*np.pi
+
+    # Should fixate?
+        should_fix1 = y_loc1 < 0
+
+    # performance
+    #perf1 = should_fix * fixating + (1-should_fix) * corr_loc * (1-fixating)
+    #perf1 = should_fix1 * fixating1 + (1-should_fix1) * corr_loc1 * nonfixating1
+    #perf1 = should_fix1 * fixating1 + (1-fixating1) * corr_loc1 * (~should_fix1)
+        perfi = should_fix1 * fixating1 + nonfixating1 * (~should_fix1) * corr_loc1
+
+        perf_array[i] = perfi
+    perf1 = np.logical_and(perf_array[0], perf_array[1])
+    #perf = (perf0 + perf1)/2
+    perf = np.logical_and(perf0, perf1)
+    return np.float16(perf)
 
 class LeakyRNNCell(RNNCell):
     """The most basic RNN cell.
@@ -122,6 +204,7 @@ class LeakyRNNCell(RNNCell):
                  activation='softplus',
                  w_rec_init='diag',
                  neur_type=None,
+                 pos_win=False,
                  rng=None,
                  reuse=None,
                  name=None):
@@ -135,6 +218,8 @@ class LeakyRNNCell(RNNCell):
         self._reuse = reuse
 # >>> change here
         self.neur_type = neur_type
+        self.pos_win = pos_win
+        
 
         if activation == 'softplus':
             self._activation = tf.nn.softplus
@@ -204,6 +289,29 @@ class LeakyRNNCell(RNNCell):
                 'kernel',
                 shape=[input_depth + self._num_units, self._num_units],
                 initializer=self._initializer)
+
+    # # ### change here
+
+    #     if self.neur_type is not None:
+
+
+    #         w_in, w_rec = tf.split(self._kernel, [self.input_depth, self._num_units], axis=0)
+    #         n = w_rec.shape[0].value
+    #         diag_mask = tf.ones((n, n)) - tf.eye(n)
+    #         w_rec_no_diag = w_rec * diag_mask
+    #         dale_matrix = tf.linalg.tensor_diag(self.neur_type)
+    #         w_rec_signed = tf.nn.relu(tf.matmul(w_rec_no_diag, dale_matrix)) ###
+    #         w_rec_new = tf.matmul(w_rec_signed, dale_matrix)
+        
+    #         w_in = self._kernel[:input_depth, :]
+
+    #         assign_op = tf.assign(self._kernel, tf.concat([w_in, w_rec_new], axis=0))
+
+    #         with tf.control_dependencies([assign_op]):
+    #             self._kernel = tf.identity(tf.concat([w_in, w_rec_new], axis=0))
+
+    # # ### change ended here
+
         self._bias = self.add_variable(
                 'bias',
                 shape=[self._num_units],
@@ -215,12 +323,50 @@ class LeakyRNNCell(RNNCell):
         """Most basic RNN: output = new_state = act(W * input + U * state + B)."""
 
         full_kernel = self._kernel
+
+
+        # # # >>> dale change here:
+
         if self.neur_type is not None:
+
+            print('Using Dale principle in RNN')
             w_in, w_rec = tf.split(self._kernel, [self.input_depth, self._num_units], axis=0)
-            w_rec = nn_ops.relu(w_rec)
+
+            n = w_rec.shape[0].value
+            diag_mask = tf.ones((n, n)) - tf.eye(n)
+            w_rec_no_diag = w_rec * diag_mask
             dale_matrix = tf.linalg.tensor_diag(self.neur_type)
-            w_rec = math_ops.matmul(w_rec, dale_matrix)
-            full_kernel = tf.concat([w_in, w_rec], axis=0)
+            w_rec_signed = tf.nn.relu(tf.matmul(w_rec_no_diag, dale_matrix)) ###
+            w_rec_new = tf.matmul(w_rec_signed, dale_matrix)
+
+
+            #w_rec_new = w_rec_no_diag
+            # w_in_signed = tf.nn.relu(w_in)
+
+            full_kernel_new = tf.concat([w_in, w_rec_new], axis=0)
+
+            assign_op = tf.assign(self._kernel, full_kernel_new)
+
+            with tf.control_dependencies([assign_op]):
+                full_kernel = tf.identity(full_kernel_new)
+        
+        else:
+            full_kernel = self._kernel
+
+        if self.pos_win:
+
+            w_in, w_rec = tf.split(self._kernel, [self.input_depth, self._num_units], axis=0)
+
+            w_in_pos = tf.nn.relu(w_in)
+
+            full_kernel_new = tf.concat([w_in_pos, w_rec], axis=0)
+
+            assign_op = tf.assign(self._kernel, full_kernel_new)
+
+            with tf.control_dependencies([assign_op]):
+                full_kernel = tf.identity(full_kernel_new)
+
+
 
         gate_inputs = math_ops.matmul(
             array_ops.concat([inputs, state], 1), full_kernel)
@@ -453,7 +599,9 @@ class Model(object):
                  model_dir,
                  hp=None,
                  sigma_rec=None,
-                 dt=None):
+                 dt=None,
+                 tracked_vars={'samples_seen': 0, 'total_train_time': 0.0},
+                 verbose=True):
         """
         Initializing the model with information from hp
 
@@ -462,6 +610,12 @@ class Model(object):
             hp: a dictionary or None
             sigma_rec: if not None, overwrite the sigma_rec passed by hp
         """
+
+### change starts here
+        self.verbose = verbose
+        self.samples_seen = tracked_vars.get('samples_seen')
+        self.total_train_time = tracked_vars.get('total_train_time')
+### change ends here
 
         # Reset tensorflow graphs
         tf.reset_default_graph()  # must be in the beginning
@@ -533,8 +687,29 @@ class Model(object):
         # Set cost
         self.set_optimizer()
 
+
+# ### change starts here
+        
+
+#         with tf.variable_scope("tracker"):
+#             self._samples_seen_var = tf.get_variable(
+#                 "samples_seen",
+#                 shape=[],
+#                 dtype=tf.int64,
+#                 initializer=tf.zeros_initializer(),
+#                 trainable=False
+#             )
+
+#         self.increment_samples_by = tf.placeholder(tf.int64, shape=[])
+#         self.increment_samples = tf.assign_add(self.samples_seen, self.increment_samples_by)
+
+
+# ### change ends here
+
+
         # Variable saver
         # self.saver = tf.train.Saver(self.var_list)
+
         self.saver = tf.train.Saver()
 
     def _build_fused(self, hp):
@@ -570,6 +745,7 @@ class Model(object):
                                 activation=hp['activation'],
                                 w_rec_init=hp['w_rec_init'],
                                 neur_type=hp.get('neur_type'),
+                                pos_win=hp.get('pos_win'),
                                 rng=self.rng)
         elif hp['rnn_type'] == 'LeakyGRU':
             cell = LeakyGRUCell(
@@ -810,9 +986,10 @@ class Model(object):
         if var_list is None:
             var_list = self.var_list
 
-        print('Variables being optimized:')
-        for v in var_list:
-            print(v)
+        if self.verbose:
+            print('Variables being optimized:')
+            for v in var_list:
+                print(v)
 
         self.grads_and_vars = self.opt.compute_gradients(cost, var_list)
         # gradient clipping
@@ -853,4 +1030,17 @@ class Model(object):
         if verbose:
             print('Lesioned units:')
             print(units)
+
+### change started here
+    # @property
+    # def samples_seen(self):
+    #     sess = tf.get_default_session()
+    #     print('here')
+    #     print(sess)
+    #     print('here_2')
+    #     if sess is None:
+    #         raise ValueError("No active TensorFlow session. Run inside a session.")
+    #     return sess.run(self._samples_seen_var)
+    
+### change ended here
 

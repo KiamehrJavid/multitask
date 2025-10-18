@@ -101,12 +101,24 @@ def load_hp(model_dir):
 
 
 def save_hp(hp, model_dir):
+
+
+    def make_serializable(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
     """Save the hyper-parameter file of model save_name"""
     hp_copy = hp.copy()
+
     hp_copy.pop('rng')  # rng can not be serialized
-    if hp_copy.get('neur_type') is not None: hp_copy.pop('neur_type') # neur_type can not be serialized either apparently
+    # if hp_copy.get('neur_type') is not None: hp_copy.pop('neur_type') # neur_type can not be serialized either apparently
+    # print(type(hp_copy.get('neur_type')))
+    # if hp_copy.get('neur_type') and type(hp_copy.get('neur_type')) == np.ndarray: hp_copy['neur_type'] = hp.get('neur_type').tolist()
+
+
     with open(os.path.join(model_dir, 'hp.json'), 'w') as f:
-        json.dump(hp_copy, f)
+        json.dump(hp_copy, f, default=make_serializable)
 
 
 def load_pickle(file):

@@ -20,6 +20,9 @@ from task import generate_trials
 from network import Model, get_perf
 from analysis import variance
 import tools
+import json
+import os
+import seaborn as sns
 
 
 def get_default_hp(ruleset):
@@ -198,6 +201,7 @@ def train(model_dir,
           rich_output=False,
           load_dir=None,
           trainables=None,
+          tracked_vars={'samples_seen': 0, 'total_train_time': 0.0},
           ):
     """Train the network.
 
@@ -264,6 +268,13 @@ def train(model_dir,
     with tf.Session() as sess:
         if load_dir is not None:
             model.restore(load_dir)  # complete restore
+
+### change starts here
+            tracked_vars = json.load(open(os.path.join(load_dir, 'tracked_vars.json'),'r'))
+            model.samples_seen = tracked_vars.get('samples_seen')
+            model.total_train_time = tracked_vars.get('total_train_time')
+### change ends here
+
         else:
             # Assume everything is restored
             sess.run(tf.global_variables_initializer())
@@ -341,16 +352,31 @@ def train(model_dir,
                 feed_dict = tools.gen_feed_dict(model, trial, hp)
                 sess.run(model.train_step, feed_dict=feed_dict)
 
-                # if step % 10:
-                #     print(dir(model))
-                    # w_rec_val = sess.run(model._kernel)
-                    # print("Recurrent weights (sample):\n\n\n")
-                    # print(w_rec_val[85:])
+
+                if hp['plot_weights']:
+                    wrec_asarr = model.w_rec.eval(session=sess)
+                    print(wrec_asarr)
+                    plt.imshow(1.*(wrec_asarr>0)-1.*(wrec_asarr<0), cmap='bwr')
+                    plt.scatter(np.arange(hp['n_rnn']), np.arange(hp['n_rnn']))
+                    # sns.heatmap(wrec_asarr, cmap='coolwarm', vmin=-1, vmax=1)
+                    plt.show()
+
                 step += 1
 
             except KeyboardInterrupt:
                 print("Optimization interrupted by user")
                 break
+
+        new_samples_seen = (step-1) * hp['batch_size_train']
+        model.samples_seen += new_samples_seen
+        new_trained_time = time.time() - t_start
+        model.total_train_time += new_trained_time
+        tracked_vars = {'samples_seen': model.samples_seen,
+                        'total_train_time': model.total_train_time}
+
+        fname = os.path.join(model_dir, 'tracked_vars.json')
+        with open(fname, 'w') as f:
+            json.dump(tracked_vars, f)
 
         print("Optimization finished!")
 
@@ -647,7 +673,6 @@ def train_rule_only(
 
 if __name__ == '__main__':
     import argparse
-    import os
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
