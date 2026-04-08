@@ -48,14 +48,14 @@ def load_model(model_dir, verbose=False):
 
 def set_params(N, rule, dale, pos_win=False, data_dir='/home/kia/Desktop/PoD/Thesis/multitask/data/', debug_num = None):
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     ruleset = 'all'
     rule_trains = [rule]
 
     batch_size = 4096
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     hp = {'batch_size_train': batch_size,
             'activation': 'relu',
             'target_perf' : 1,
@@ -79,8 +79,8 @@ def set_params(N, rule, dale, pos_win=False, data_dir='/home/kia/Desktop/PoD/The
     else:
         model_dir += '/nodale'
 
-    if pos_win:
-        model_dir += 'poswin_'
+    if (pos_win) and (dale is not None):
+        model_dir += '_poswin'
         hp['pos_win'] = True
     else:
         hp['pos_win'] = False
@@ -99,8 +99,10 @@ def train_varying_batch_size(model_dir, rule_trains, hp, ruleset='all',
                              niter=5, Batch_Sizes=[512,4096], max_steps=None, learning_rate = None,
                              train_from_scratch=False, verbose=True, asses = False):
     
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     
+    tf.reset_default_graph()
+
     samp_ax = []
     time_ax = []
     errs = []
@@ -108,6 +110,9 @@ def train_varying_batch_size(model_dir, rule_trains, hp, ruleset='all',
     perfs = []
     consts = []
     for iter in range(niter):
+
+        if verbose: print('\n\n\nStarting iteration '+str(iter)+' / '+str(niter)+'\n\n')
+        
         for batch_size in Batch_Sizes:
 
             if ((iter == 0) and (batch_size == Batch_Sizes[0])) and train_from_scratch:
@@ -136,7 +141,7 @@ def train_varying_batch_size(model_dir, rule_trains, hp, ruleset='all',
 
             train(model_dir,
                     load_dir=load_dir,
-                    seed=17,
+                    seed=np.random.randint(1e6),
                     hp=hp,
                     ruleset=ruleset,
                     rule_trains=rule_trains,
