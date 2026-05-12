@@ -1,0 +1,1 @@
+{"model_dir": "/home/kiamehr/multitask/data_February/test_3/debug/dale_0.6_poswin/dm1__N256", "trials": [0, 819200], "times": [0.15436959266662598, 459.77836537361145], "cost_dm1": [0.013784260750981048, 0.006426446550904075], "creg_dm1": [0.0, 0.0], "perf_dm1": [0.75, 0.54296875], "perf_avg": [0.75, 0.54296875], "perf_min": [0.75, 0.54296875]}

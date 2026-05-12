@@ -1,0 +1,2 @@
+model_checkpoint_path: "/home/kiamehr/multitask/data_February/test_1/debug/dale_0.6/reactgo__N256/model.ckpt"
+all_model_checkpoint_paths: "/home/kiamehr/multitask/data_February/test_1/debug/dale_0.6/reactgo__N256/model.ckpt"

@@ -14,7 +14,9 @@ rules_dict = \
 
     'mante' : ['contextdm1', 'contextdm2'],
 
-    'oicdmc' : ['oic', 'dmc']}
+    'oicdmc' : ['oic', 'dmc'],
+
+    'objgrasp' : ['objgrasp']}
 
 # Store indices of rules
 rule_index_map = dict()
@@ -1509,7 +1511,171 @@ def delaymatchcategory_original(config, mode, **kwargs):
     return trial
 
 
-rule_mapping = {'testinit': test_init,
+
+
+
+
+### --------------------
+
+
+
+
+
+def objgrasp_(config, mode, anti_response, **kwargs):
+    '''
+    Fixate when fixation point is shown,
+    A stimulus will be shown, and the output should saccade to the stimulus location
+    Generate one batch of trials
+
+    The fixation is shown between (0, T)
+    The stimulus is shown between (fix_off,T)
+
+    The output should be fixation location for (0, fix_off)
+    Otherwise should be the stimulus location
+
+    :param mode: the mode of generating. Options: 'random', 'explicit'...
+    Optional parameters:
+    :param batch_size: Batch size (required for mode=='random')
+    :param tdim: dimension of time (required for mode=='sample')
+    :param param: a dictionary of parameters (required for mode=='explicit')
+    :return: 2 Tensor3 data array (Time, Batchsize, Units)
+    '''
+    dt = config['dt']
+    rng = config['rng']
+    if mode == 'random': # Randomly generate parameters
+        batch_size = kwargs['batch_size']
+
+        x = []
+        y = []
+
+        stim_ons = int(rng.uniform(1000,2000)/dt)
+        tdim = + stim_ons + int(rng.uniform(500, 1500)/dt)
+        
+        for i in range(batch_size):
+
+            stim_off = tdim
+
+            cue_ons = int(rng.uniform(0,400)/dt)
+            cue_off = int(rng.uniform(200,tdim*dt)/dt) + cue_ons
+            cue_pitch = rng.choice([0,1])
+
+            stim_type = rng.choice([1,2,3])
+
+            obs = rng.choice([0,1])
+
+
+            inp = np.zeros((7,tdim))
+
+            inp[cue_pitch, cue_ons:cue_off] = 1
+            inp[stim_type + 1, stim_ons:stim_off] = 1
+            inp[obs + 5,:] = 1
+
+
+            tar = np.zeros((7,tdim))
+            tar[0, cue_ons:] = cue_pitch
+            if cue_pitch == 0:
+                tar[3 + stim_type, stim_ons:stim_off] = 1
+                tar[stim_type, stim_ons:stim_off] = (1-obs)
+
+            x.append(inp)
+            y.append(tar)
+
+    elif mode == 'test':
+
+        x = []
+        y = []
+        tdim = int(2500/dt)
+        
+        if kwargs['batch_size'] is not None:    batch_size = kwargs['batch_size']
+        else:                                   batch_size = 40
+
+    #     n_stim_loc, n_stim_mod = batch_shape = 20, 2
+    #     ind_stim_loc, ind_stim_mod = np.unravel_index(range(batch_size),batch_shape)
+
+        stim_ons  = int(2000/dt)
+        stim_off = tdim
+
+        for i in range(batch_size):
+
+            cue_ons = int(rng.uniform(0,400)/dt)
+            cue_off = int(rng.uniform(200,tdim*dt)/dt) + cue_ons
+            cue_pitch = rng.choice([0,1])
+
+            stim_type = rng.choice([1,2,3])
+
+            obs = rng.choice([0,1])
+
+
+            inp = np.zeros((7,tdim))
+
+            inp[cue_pitch, cue_ons:cue_off] = 1
+            inp[stim_type + 1, stim_ons:stim_off] = 1
+            inp[obs + 5,:] = 1
+
+
+            tar = np.zeros((7,tdim))
+            tar[0, cue_ons:] = cue_pitch
+            if cue_pitch == 0:
+                tar[3 + stim_type, stim_ons:stim_off] = 1
+                tar[stim_type, stim_ons:stim_off] = (1-obs)
+
+            x.append(inp)
+            y.append(tar)
+
+    #     stim_locs  = 2*np.pi*ind_stim_loc/n_stim_loc
+    #     stim_mod   = ind_stim_mod + 1
+
+    elif mode == 'psychometric':
+        p = kwargs['params']
+        stim_locs = p['stim_locs']
+        batch_size = len(stim_locs)
+
+        # Time of stimuluss on/off
+        stim_ons = int(1000/dt)
+        tdim = int(400/dt) + stim_ons
+        stim_mod   = 1
+
+    else:
+        raise ValueError('Unknown mode: ' + str(mode))
+
+    # time to check the saccade location
+    check_ons  = stim_ons + int(100/dt)
+
+    # Response locations
+    # stim_locs = np.array(stim_locs)
+    # if not anti_response:
+    #     response_locs = stim_locs
+    # else:
+    #     response_locs = (stim_locs+np.pi)%(2*np.pi)
+
+    trial = Trial(config, tdim, batch_size)
+    trial.x = np.array(x).transpose((2,0,1))
+    trial.y = np.array(y).transpose((2,0,1))
+    trial.add_c_mask(pre_offs=stim_ons, post_ons=check_ons)
+
+
+
+    # trial.epochs = {'fix1'     : (None, stim_ons),
+    #                'go1'      : (stim_ons, None)}
+
+    return trial
+
+
+
+
+#### -------------------
+
+
+### --------------------
+
+
+
+def objgrasp(config, mode, **kwargs):
+    return objgrasp_(config, mode, False, **kwargs)
+
+
+rule_mapping = {'objgrasp': objgrasp,
+                'testinit': test_init,
                 'fdgo': fdgo,
                 'reactgo': reactgo,
                 'delaygo': delaygo,
@@ -1606,8 +1772,8 @@ def generate_trials(rule, hp, mode, noise_on=True, **kwargs):
         else:
             rule_strength = [1.] * len(rule)
 
-    for r, s in zip(rule, rule_strength):
-        trial.add_rule(r, on=rule_on, off=rule_off, strength=s)
+    # for r, s in zip(rule, rule_strength):
+    #     trial.add_rule(r, on=rule_on, off=rule_off, strength=s)
 
     if noise_on:
         trial.add_x_noise()

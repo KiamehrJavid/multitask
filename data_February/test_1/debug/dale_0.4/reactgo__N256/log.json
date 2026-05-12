@@ -1,0 +1,1 @@
+{"model_dir": "/home/kiamehr/multitask/data_February/test_1/debug/dale_0.4/reactgo__N256", "trials": [0, 819200], "times": [0.1646413803100586, 558.5148186683655], "cost_reactgo": [8.423049780503788e-05, 8.29453617825493e-05], "creg_reactgo": [0.0, 0.0], "perf_reactgo": [0.7421875, 1.0], "perf_avg": [0.7421875, 1.0], "perf_min": [0.7421875, 1.0]}

@@ -48,14 +48,15 @@ def load_model(model_dir, verbose=False):
 
 def set_params(N, rule, dale, pos_win=False, data_dir='/home/kia/Desktop/PoD/Thesis/multitask/data/', debug_num = None):
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     ruleset = 'all'
     rule_trains = [rule]
 
     batch_size = 4096
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
     hp = {'batch_size_train': batch_size,
             'activation': 'relu',
             'target_perf' : 1,
@@ -66,6 +67,22 @@ def set_params(N, rule, dale, pos_win=False, data_dir='/home/kia/Desktop/PoD/The
             'learnin_rate': 0.001,
             'rng':np.random}
 
+
+    if rule == 'objgrasp':
+
+        ruleset = 'objgrasp'
+
+        n_input = 7
+        n_output = 7
+        n_eachring = 3
+        num_ring = 2
+
+        hpt = {'n_input': n_input, 'n_output': n_output, 'n_eachring': n_eachring, 'num_ring': num_ring}
+        
+        hp.update(hpt)
+
+
+            
 
     model_dir = data_dir + 'debug' + ('' if debug_num is None else '_'+str(debug_num))
     dale = dale # share of the inhibitory neurons
@@ -79,8 +96,8 @@ def set_params(N, rule, dale, pos_win=False, data_dir='/home/kia/Desktop/PoD/The
     else:
         model_dir += '/nodale'
 
-    if pos_win:
-        model_dir += 'poswin_'
+    if (pos_win) and (dale is not None):
+        model_dir += '_poswin'
         hp['pos_win'] = True
     else:
         hp['pos_win'] = False
@@ -99,8 +116,10 @@ def train_varying_batch_size(model_dir, rule_trains, hp, ruleset='all',
                              niter=5, Batch_Sizes=[512,4096], max_steps=None, learning_rate = None,
                              train_from_scratch=False, verbose=True, asses = False):
     
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     
+    tf.reset_default_graph()
+
     samp_ax = []
     time_ax = []
     errs = []
@@ -108,6 +127,9 @@ def train_varying_batch_size(model_dir, rule_trains, hp, ruleset='all',
     perfs = []
     consts = []
     for iter in range(niter):
+
+        if verbose: print('\n\n\nStarting iteration '+str(iter)+' / '+str(niter)+'\n\n')
+        
         for batch_size in Batch_Sizes:
 
             if ((iter == 0) and (batch_size == Batch_Sizes[0])) and train_from_scratch:
@@ -136,7 +158,7 @@ def train_varying_batch_size(model_dir, rule_trains, hp, ruleset='all',
 
             train(model_dir,
                     load_dir=load_dir,
-                    seed=17,
+                    seed=np.random.randint(1e6),
                     hp=hp,
                     ruleset=ruleset,
                     rule_trains=rule_trains,
@@ -159,7 +181,7 @@ def train_varying_batch_size(model_dir, rule_trains, hp, ruleset='all',
 
 def generate_and_predict(rule, model, hp, sess):
 
-    trial = generate_trials(rule, hp=hp, mode='test')
+    trial = generate_trials(rule, hp=hp, mode='test', batch_size=1)
     feed_dict = tools.gen_feed_dict(model, trial, hp)
     output = sess.run(model.y_hat, feed_dict=feed_dict)
     return trial, output
@@ -205,18 +227,29 @@ def plot_trial(model_dir, save = False, rule='reactgo', suffix=''):
     model, hp , sess= load_model(model_dir)
     trial, output = generate_and_predict(rule=rule, model=model, hp=hp, sess=sess)
 
-    k = np.random.randint(0, 40)
-    s = np.random.randint(0, 33)
-    out = output[:,k,:]
-    tar = trial.y[:,k,:]
+    # k = 1#np.random.randint(0, 10)
+    inp = trial.x[:,0,:]
+    out = output[:,0,:]
+    tar = trial.y[:,0,:]
 
 
 
     plt.figure(figsize=(10, 3))
-    plt.plot(out, label='Model Output')
+    plt.plot(inp, label = ['HP', 'LP', 'O1', 'O2', 'O3', 'EXEC', 'OBS'])
+    plt.title('Model input')
+    plt.xlabel('Time')
+    plt.ylabel('Stimulus')
+    if rule == 'objgrasp': plt.legend()
+    if save:    plt.savefig(os.path.join(model_dir, 'plots', 'model_input_'+suffix+'.png'))
+    plt.show()
+
+
+    plt.figure(figsize=(10, 3))
+    plt.plot(out, label = ['FIXATE', 'O1_ACT', 'O2_ACT' , 'O3_ACT', 'O1_PREP', 'O2_PREP', 'O3_PREP'])
     plt.title('Model output')
     plt.xlabel('Time')
     plt.ylabel('Response')
+    if rule == 'objgrasp': plt.legend()
     if save:    plt.savefig(os.path.join(model_dir, 'plots', 'model_output_'+suffix+'.png'))
     plt.show()
 
