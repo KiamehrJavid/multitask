@@ -1,1 +1,0 @@
-{"model_dir": "/home/kiamehr/multitask/newtask/debug/nodale/objgrasp__N355", "trials": [0, 819200], "times": [0.18084073066711426, 510.25433349609375], "cost_objgrasp": [2.6899855398720973e-08, 2.3054592623861225e-08], "creg_objgrasp": [0.0, 0.0], "perf_objgrasp": [0.544921875, 0.5234375], "perf_avg": [0.544921875, 0.5234375], "perf_min": [0.544921875, 0.5234375]}

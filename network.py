@@ -323,48 +323,56 @@ class LeakyRNNCell(RNNCell):
         """Most basic RNN: output = new_state = act(W * input + U * state + B)."""
 
         full_kernel = self._kernel
+        w_in, w_rec = tf.split(self._kernel, [self.input_depth, self._num_units], axis=0)
+
+
+        if self.pos_win:
+
+            # w_in, w_rec = tf.split(self._kernel, [self.input_depth, self._num_units], axis=0)
+
+            w_in = tf.nn.relu(w_in)
+
+            # full_kernel_new = tf.concat([w_in_pos, w_rec], axis=0)
+
+            # assign_op = tf.assign(self._kernel, full_kernel_new)
+
+            # with tf.control_dependencies([assign_op]):
+                # full_kernel = tf.identity(full_kernel_new)
 
 
         # # # >>> dale change here:
 
         if self.neur_type is not None:
 
-            print('Using Dale principle in RNN')
-            w_in, w_rec = tf.split(self._kernel, [self.input_depth, self._num_units], axis=0)
+            # print('Using Dale principle in RNN')
+            # w_in, w_rec = tf.split(self._kernel, [self.input_depth, self._num_units], axis=0)
 
             n = w_rec.shape[0].value
             diag_mask = tf.ones((n, n)) - tf.eye(n)
             w_rec_no_diag = w_rec * diag_mask
             dale_matrix = tf.linalg.tensor_diag(self.neur_type)
             w_rec_signed = tf.nn.relu(tf.matmul(w_rec_no_diag, dale_matrix)) ###
-            w_rec_new = tf.matmul(w_rec_signed, dale_matrix)
+            w_rec = tf.matmul(w_rec_signed, dale_matrix)
 
 
             #w_rec_new = w_rec_no_diag
             # w_in_signed = tf.nn.relu(w_in)
 
-            full_kernel_new = tf.concat([w_in, w_rec_new], axis=0)
+            # full_kernel_new = tf.concat([w_in, w_rec_new], axis=0)
 
-            assign_op = tf.assign(self._kernel, full_kernel_new)
+            # assign_op = tf.assign(self._kernel, full_kernel_new)
 
-            with tf.control_dependencies([assign_op]):
-                full_kernel = tf.identity(full_kernel_new)
+            # with tf.control_dependencies([assign_op]):
+                # full_kernel = tf.identity(full_kernel_new)
         
-        else:
-            full_kernel = self._kernel
+        # if not self.pos_win and self.neur_type is None:
+            # full_kernel = self._kernel
 
-        if self.pos_win:
+        full_kernel = tf.concat([w_in, w_rec], axis=0)
 
-            w_in, w_rec = tf.split(self._kernel, [self.input_depth, self._num_units], axis=0)
-
-            w_in_pos = tf.nn.relu(w_in)
-
-            full_kernel_new = tf.concat([w_in_pos, w_rec], axis=0)
-
-            assign_op = tf.assign(self._kernel, full_kernel_new)
-
-            with tf.control_dependencies([assign_op]):
-                full_kernel = tf.identity(full_kernel_new)
+        assign_op = tf.assign(self._kernel, full_kernel)
+        with tf.control_dependencies([assign_op]):
+            full_kernel = tf.identity(full_kernel)
 
 
 
@@ -686,29 +694,6 @@ class Model(object):
                 learning_rate=hp['learning_rate'])
         # Set cost
         self.set_optimizer()
-
-
-# ### change starts here
-        
-
-#         with tf.variable_scope("tracker"):
-#             self._samples_seen_var = tf.get_variable(
-#                 "samples_seen",
-#                 shape=[],
-#                 dtype=tf.int64,
-#                 initializer=tf.zeros_initializer(),
-#                 trainable=False
-#             )
-
-#         self.increment_samples_by = tf.placeholder(tf.int64, shape=[])
-#         self.increment_samples = tf.assign_add(self.samples_seen, self.increment_samples_by)
-
-
-# ### change ends here
-
-
-        # Variable saver
-        # self.saver = tf.train.Saver(self.var_list)
 
         self.saver = tf.train.Saver()
 

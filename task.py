@@ -1514,7 +1514,6 @@ def delaymatchcategory_original(config, mode, **kwargs):
 
 
 
-
 ### --------------------
 
 
@@ -1522,24 +1521,7 @@ def delaymatchcategory_original(config, mode, **kwargs):
 
 
 def objgrasp_(config, mode, anti_response, **kwargs):
-    '''
-    Fixate when fixation point is shown,
-    A stimulus will be shown, and the output should saccade to the stimulus location
-    Generate one batch of trials
 
-    The fixation is shown between (0, T)
-    The stimulus is shown between (fix_off,T)
-
-    The output should be fixation location for (0, fix_off)
-    Otherwise should be the stimulus location
-
-    :param mode: the mode of generating. Options: 'random', 'explicit'...
-    Optional parameters:
-    :param batch_size: Batch size (required for mode=='random')
-    :param tdim: dimension of time (required for mode=='sample')
-    :param param: a dictionary of parameters (required for mode=='explicit')
-    :return: 2 Tensor3 data array (Time, Batchsize, Units)
-    '''
     dt = config['dt']
     rng = config['rng']
     if mode == 'random': # Randomly generate parameters
@@ -1548,7 +1530,7 @@ def objgrasp_(config, mode, anti_response, **kwargs):
         x = []
         y = []
 
-        stim_ons = int(rng.uniform(1000,2000)/dt)
+        stim_ons = int(rng.uniform(500,1500)/dt)
         tdim = + stim_ons + int(rng.uniform(500, 1500)/dt)
         
         for i in range(batch_size):
@@ -1556,7 +1538,7 @@ def objgrasp_(config, mode, anti_response, **kwargs):
             stim_off = tdim
 
             cue_ons = int(rng.uniform(0,400)/dt)
-            cue_off = int(rng.uniform(200,tdim*dt)/dt) + cue_ons
+            cue_off = int(rng.uniform(500,tdim*dt)/dt)
             cue_pitch = rng.choice([0,1])
 
             stim_type = rng.choice([1,2,3])
@@ -1597,8 +1579,8 @@ def objgrasp_(config, mode, anti_response, **kwargs):
 
         for i in range(batch_size):
 
-            cue_ons = int(rng.uniform(0,400)/dt)
-            cue_off = int(rng.uniform(200,tdim*dt)/dt) + cue_ons
+            cue_ons = int(rng.uniform(100,400)/dt)
+            cue_off = int(rng.uniform(500,tdim*dt)/dt)
             cue_pitch = rng.choice([0,1])
 
             stim_type = rng.choice([1,2,3])

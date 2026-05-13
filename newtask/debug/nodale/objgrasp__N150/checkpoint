@@ -1,2 +1,0 @@
-model_checkpoint_path: "/home/kiamehr/multitask/newtask/debug/nodale/objgrasp__N150/model.ckpt"
-all_model_checkpoint_paths: "/home/kiamehr/multitask/newtask/debug/nodale/objgrasp__N150/model.ckpt"

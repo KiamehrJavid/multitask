@@ -1,0 +1,1 @@
+{"model_dir": "/home/kiamehr/multitask/newtask/test_1/debug/dale_0.8/objgrasp__N256", "trials": [0], "times": [0.17787504196166992], "cost_objgrasp": [0.0007458792679244652], "creg_objgrasp": [0.0], "perf_objgrasp": [0.505859375], "perf_avg": [0.505859375], "perf_min": [0.505859375]}

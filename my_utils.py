@@ -181,7 +181,7 @@ def train_varying_batch_size(model_dir, rule_trains, hp, ruleset='all',
 
 def generate_and_predict(rule, model, hp, sess):
 
-    trial = generate_trials(rule, hp=hp, mode='test', batch_size=1)
+    trial = generate_trials(rule, hp=hp, mode='test', batch_size=40)
     feed_dict = tools.gen_feed_dict(model, trial, hp)
     output = sess.run(model.y_hat, feed_dict=feed_dict)
     return trial, output
