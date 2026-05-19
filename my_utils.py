@@ -30,6 +30,7 @@ def load_model(model_dir, verbose=False):
     with open(model_dir+'/hp.json', 'r') as f:
         hp = json.load(f)
 
+
     hp['rng'] = np.random
 
     tf.reset_default_graph()
@@ -96,7 +97,7 @@ def set_params(N, rule, dale, pos_win=False, data_dir='/home/kia/Desktop/PoD/The
     else:
         model_dir += '/nodale'
 
-    if (pos_win) and (dale is not None):
+    if pos_win:
         model_dir += '_poswin'
         hp['pos_win'] = True
     else:
@@ -294,9 +295,12 @@ def plot_trial(model_dir, save = False, rule='reactgo', suffix=''):
     plt.show()
 
 
-def assess_model(model_dir, rule='reactgo', plot = False, save_plots = False, verbose = False, suffix=''):
+def assess_model(model_dir, mhs=None, rule='reactgo', plot = False, save_plots = False, verbose = False, suffix=''):
 
-    model, hp , sess= load_model(model_dir)
+    if mhs is not None:
+        model, hp , sess= mhs
+    else:
+        model, hp , sess= load_model(model_dir)
     err = Total_Absolute_Error(model=model, hp=hp, model_dir=model_dir, rule=rule)
     cor = pearson_over_tail(model=model, hp=hp, model_dir=model_dir, rule=rule)
 

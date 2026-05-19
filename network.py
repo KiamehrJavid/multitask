@@ -771,7 +771,10 @@ class Model(object):
         y_hat_ = tf.matmul(h_shaped, w_out) + b_out
         if hp['loss_type'] == 'lsq':
             # Least-square loss
-            y_hat = tf.sigmoid(y_hat_)
+            if hp['outact'] == 'linear':
+                y_hat = tf.identity(y_hat_)
+            elif hp['outact'] == 'sigmoid':
+                y_hat = tf.sigmoid(y_hat_)
             self.cost_lsq = tf.reduce_mean(
                 tf.square((y_shaped - y_hat) * self.c_mask))
         else:
